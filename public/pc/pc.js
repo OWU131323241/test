@@ -1,131 +1,135 @@
 const socket = io();
-const layersDiv = document.getElementById('layers');
-const cupLid = document.getElementById('cup-lid');
-const cupWrapper = document.getElementById('cup-wrapper');
-const drinkBar = document.getElementById('drink-bar');
 
-let colors = ['red', 'blue', 'yellow', 'white'];
-let currentIndex = 0;
-let pourInterval = null;
-let mixLevel = 0; // 0: 層、100: 完全に混ざった
+const layers = document.getElementById('layers');
+const cupWrapper = document.getElementById('cup-wrapper');
+const cupLid = document.getElementById('cup-lid');
+const cupContainer = document.getElementById('cup-container');
+const dispensers = document.querySelectorAll('.dispenser');
+
+let selectedIndex = 0;
+let isPouring = false;
+let pourInterval;
+let mixProgress = 0; // 0: 混ざっていない, 1: 完全に混ざった
+let pouredColors = []; // 注いだ色の履歴
+
+// ディスペンサーの色設定
+const colors = ['red', 'blue', 'yellow', 'white'];
+
+function updateSelection() {
+    dispensers.forEach((d, i) => {
+        d.classList.toggle('selected', i === selectedIndex);
+    });
+}
+
+// 液体を注ぐ
+function pour() {
+    if (layers.childElementCount > 120) return; // 満杯なら注がない
+    
+    const color = colors[selectedIndex];
+    const layer = document.createElement('div');
+    layer.className = 'layer';
+    layer.style.backgroundColor = color;
+    layer.dataset.color = color; // 計算用に色を保持
+    layers.appendChild(layer);
+    
+    pouredColors.push(color);
+}
+
+// 平均色を計算する（RGB平均）
+function calculateAverageColor() {
+    if (pouredColors.length === 0) return 'transparent';
+    
+    const colorMap = {
+        'red': [255, 0, 0],
+        'blue': [0, 0, 255],
+        'yellow': [255, 255, 0],
+        'white': [255, 255, 255]
+    };
+
+    let r = 0, g = 0, b = 0;
+    pouredColors.forEach(c => {
+        r += colorMap[c][0];
+        g += colorMap[c][1];
+        b += colorMap[c][2];
+    });
+
+    const count = pouredColors.length;
+    return `rgb(${Math.round(r/count)}, ${Math.round(g/count)}, ${Math.round(b/count)})`;
+}
 
 socket.on('cmd', (data) => {
     switch(data.type) {
         case 'changeScreen':
-            if (document.getElementById('screen-' + data.screen)) {
-                showScreen(data.screen);
-                if(data.screen === 'gallery') loadGallery();
-            }
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('screen-' + data.screen).classList.add('active');
+            if (data.screen === 'home') location.reload();
             break;
+
         case 'move':
-            currentIndex = (currentIndex + data.dir + 4) % 4;
-            updateDispenser();
+            selectedIndex = (selectedIndex + data.dir + colors.length) % colors.length;
+            updateSelection();
             break;
+
         case 'startPour':
-            startPouring();
+            isPouring = true;
+            pourInterval = setInterval(pour, 50);
             break;
+
         case 'stopPour':
-            stopPouring();
+            isPouring = false;
+            clearInterval(pourInterval);
             break;
-        case 'reset':
-            layersDiv.innerHTML = '';
-            mixLevel = 0;
-            break;
+
         case 'mixMode':
-            drinkBar.style.visibility = 'hidden';
-            cupLid.style.top = '0px';
-            cupWrapper.style.transition = "transform 0.1s linear";
+            // 蓋を閉める
+            cupLid.style.top = '0';
+            // 混ざる前の「平均色」をコップの背景にセットしておく
+            cupContainer.style.backgroundColor = calculateAverageColor();
+            mixProgress = 0;
             break;
+
         case 'tilt':
-            // 傾きに連動（1.5倍ズームした状態で回転）
-            cupWrapper.style.transform = `scale(1.5) rotate(${data.value}deg)`;
+            // スマホの傾き(gamma)をコップの回転に反映
+            cupWrapper.style.transform = `rotate(${data.value * 0.6}deg)`;
             break;
+
         case 'shake':
-            processMix(data.value);
+            // 振るたびに混ざる進捗を上げる
+            mixProgress += 0.05; 
+            if (mixProgress > 1) mixProgress = 1;
+            
+            // 進捗に合わせて、層の透明度を下げる（＝背景の平均色が透けて見える）
+            layers.style.opacity = 1 - mixProgress;
+            // 少しブラー（ぼかし）をかけるとより混ざっている感が出る
+            layers.style.filter = `blur(${mixProgress * 10}px)`;
+            
+            // 振っている間の液体の揺れ演出
+            cupWrapper.style.transition = 'none';
+            cupWrapper.style.marginTop = (Math.random() * 20 - 10) + 'px';
+            setTimeout(() => { cupWrapper.style.marginTop = '0'; }, 50);
             break;
+
         case 'complete':
-            saveCupAsWork(data.title);
+            saveWork(data.title);
             break;
     }
 });
 
-function processMix(speed) {
-    mixLevel += speed * 0.1;
-    const allLayers = document.querySelectorAll('.layer');
-    
-    allLayers.forEach((l) => {
-        // 振るほど「ぼかし」が強くなり、層が溶けていく
-        const blurVal = mixLevel / 4;
-        const opacityVal = 1 - (mixLevel / 200); // 振るほど個別の層が薄くなる
-        l.style.filter = `blur(${blurVal}px)`;
-        l.style.opacity = opacityVal;
+function saveWork(title) {
+    html2canvas(document.getElementById('cup-wrapper'), { backgroundColor: null }).then(canvas => {
+        const imgData = canvas.toDataURL();
+        const grid = document.getElementById('gallery-grid');
+        const card = document.createElement('div');
+        card.className = 'work-card';
+        card.innerHTML = `
+            <img src="${imgData}">
+            <p><strong>${title}</strong></p>
+        `;
+        grid.appendChild(card);
         
-        // 振るほど層が伸びて混ざり合う
-        if (mixLevel > 20) {
-            l.style.transform = `translateY(${(Math.random()-0.5) * mixLevel}px) scaleY(${1 + mixLevel/50})`;
-        }
-    });
-
-    // 背景に「混ざり合った後の色」をうっすら表示させる
-    if (mixLevel > 5) {
-        const targetColor = getAverageColor();
-        layersDiv.style.backgroundColor = targetColor;
-        // 背景の透明度を振るほど濃くする
-        layersDiv.style.opacity = Math.min(mixLevel / 100, 1);
-    }
-}
-
-// 注がれた色の平均を計算する簡易関数
-function getAverageColor() {
-    const layers = document.querySelectorAll('.layer');
-    if (layers.length === 0) return "#fff9c4";
-    // 簡易的に最後の色と最初の色の間くらいの色をイメージ（実際はもっと複雑ですが演出用）
-    return layers[Math.floor(layers.length / 2)].style.backgroundColor;
-}
-
-// （以下、showScreen, updateDispenser, startPouringなどは以前のコードと同じ）
-function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('screen-' + id).classList.add('active');
-    if(id === 'mix') {
-        drinkBar.style.visibility = 'visible';
-        cupLid.style.top = '-30px';
-        cupWrapper.style.transform = 'scale(1)';
-        layersDiv.innerHTML = '';
-        layersDiv.style.backgroundColor = "transparent";
-        mixLevel = 0;
-    }
-}
-function updateDispenser() {
-    document.querySelectorAll('.dispenser').forEach((d, i) => {
-        d.classList.toggle('selected', i === currentIndex);
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('screen-gallery').classList.add('active');
     });
 }
-function startPouring() {
-    if(pourInterval) return;
-    pourInterval = setInterval(() => {
-        const layer = document.createElement('div');
-        layer.className = 'layer';
-        layer.style.backgroundColor = colors[currentIndex];
-        layersDiv.appendChild(layer);
-    }, 50);
-}
-function stopPouring() { clearInterval(pourInterval); pourInterval = null; }
-async function saveCupAsWork(title) {
-    const canvas = await html2canvas(document.getElementById('cup-container'));
-    localStorage.setItem('works', JSON.stringify([...JSON.parse(localStorage.getItem('works') || '[]'), { title, image: canvas.toDataURL(), id: Date.now() }]));
-}
-function loadGallery() {
-    const grid = document.getElementById('gallery-grid');
-    grid.innerHTML = '';
-    [...JSON.parse(localStorage.getItem('works') || '[]')].reverse().forEach(w => {
-        const div = document.createElement('div');
-        div.className = 'work-card';
-        div.innerHTML = `<img src="${w.image}"><p><strong>${w.title}</strong></p><button onclick="deleteWork(${w.id})">削除</button>`;
-        grid.appendChild(div);
-    });
-}
-window.deleteWork = (id) => {
-    localStorage.setItem('works', JSON.stringify(JSON.parse(localStorage.getItem('works') || '[]').filter(w => w.id !== id)));
-    loadGallery();
-};
+
+updateSelection();
