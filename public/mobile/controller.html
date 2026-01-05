@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>いろまぜコントローラー</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #fff6cc; margin: 0; user-select: none; }
+    .screen { display: none; height: 100vh; flex-direction: column; justify-content: center; align-items: center; }
+    .active { display: flex; }
+    button { padding: 20px; font-size: 20px; border-radius: 15px; border: none; background: white; box-shadow: 0 4px #bbb; margin: 10px; width: 85%; font-weight: bold; }
+    button:active { transform: translateY(2px); box-shadow: 0 2px #999; }
+    #btn-pour { background: #ff4444; color: white; height: 120px; width: 120px; border-radius: 50%; box-shadow: 0 6px #a33; }
+    .row { display: flex; width: 90%; justify-content: center; }
+    .half { width: 45%; }
+  </style>
+</head>
+<body>
+
+  <div id="screen-home" class="screen active">
+    <h1 style="color: #ffaa00;">いろまぜゲーム</h1>
+    <button onclick="changeScreen('mix')">🎨 色をつくる</button>
+    <button onclick="changeScreen('gallery')">🖼 自分の作品</button>
+  </div>
+
+  <div id="screen-mix" class="screen">
+    <p>色をえらんで注ごう！</p>
+    <div class="row">
+      <button class="half" onclick="sendCmd('move', {dir:-1})">← 左</button>
+      <button class="half" onclick="sendCmd('move', {dir:1})">右 →</button>
+    </div>
+    <button id="btn-pour">注ぐ</button>
+    <div class="row">
+      <button class="half" onclick="sendCmd('reset')">やり直し</button>
+      <button id="startBtn" class="half" style="background:#4caf50; color:white;">まぜる</button>
+    </div>
+  </div>
+
+  <div id="screen-shake" class="screen">
+    <h2 style="font-size: 40px;">📱<br>ふってまぜよう！</h2>
+    <p id="status">待機中...</p>
+    <button style="background:#2196f3; color:white; margin-top:50px;" onclick="showTitleInput()">完成！</button>
+  </div>
+
+  <div id="screen-title" class="screen">
+    <h2>タイトルを入力</h2>
+    <input type="text" id="work-title" style="padding:15px; font-size:20px; width:80%;">
+    <button style="background:#ffaa00; color:white;" onclick="finishWork()">保存</button>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="controller.js"></script>
+</body>
+</html>
