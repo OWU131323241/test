@@ -62,8 +62,11 @@ function goToScreen(screenId) {
 socket.on('cmd', (data) => {
     switch(data.type) {
         case 'changeScreen':
-            goToScreen(data.screen);
-            if (data.screen === 'home') location.reload();
+            // スマホから届いた screenId にPCの画面も合わせる
+            console.log("PC Screen changing to:", data.screen);
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById('screen-' + data.screen);
+            if (target) target.classList.add('active');
             break;
 
         case 'move':
@@ -144,3 +147,4 @@ async function saveWork(title) {
 }
 
 updateSelection();
+
