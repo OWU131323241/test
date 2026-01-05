@@ -1,4 +1,5 @@
 const socket = io();
+
 const layers = document.getElementById('layers');
 const cupWrapper = document.getElementById('cup-wrapper');
 const cupLid = document.getElementById('cup-lid');
@@ -29,14 +30,13 @@ function pour() {
     const layer = document.createElement('div');
     layer.className = 'layer';
     layer.style.backgroundColor = color;
-    layer.style.height = '3px'; // 層を少し厚くして計算負荷を軽減
+    layer.style.height = '3px';
     layers.appendChild(layer);
     pouredColors.push(color);
 }
 
-// ★修正：正しい混色アルゴリズム（比率計算）
 function getMixedColor() {
-    if (pouredColors.length === 0) return 'transparent';
+    if (pouredColors.length === 0) return '#fff9c4'; // デフォルト色
     let r = 0, g = 0, b = 0;
     pouredColors.forEach(c => {
         r += colorMap[c][0];
@@ -47,13 +47,22 @@ function getMixedColor() {
     return `rgb(${Math.round(r/count)}, ${Math.round(g/count)}, ${Math.round(b/count)})`;
 }
 
+// ★画面切り替えを確実に行う共通関数
+function goToScreen(screenId) {
+    console.log("Moving to screen:", screenId);
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById('screen-' + screenId);
+    if (target) {
+        target.classList.add('active');
+    } else {
+        console.error("Screen not found:", screenId);
+    }
+}
+
 socket.on('cmd', (data) => {
     switch(data.type) {
         case 'changeScreen':
-            // ★修正：PC側の画面遷移を確実に行う
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            const targetScreen = document.getElementById('screen-' + data.screen);
-            if(targetScreen) targetScreen.classList.add('active');
+            goToScreen(data.screen);
             if (data.screen === 'home') location.reload();
             break;
 
@@ -74,51 +83,64 @@ socket.on('cmd', (data) => {
 
         case 'mixMode':
             cupLid.style.top = '0';
-            // ★修正：背景色ではなく、液体そのものの色として混ぜる
-            const finalColor = getMixedColor();
-            cupContainer.style.backgroundColor = finalColor; 
+            cupContainer.style.backgroundColor = getMixedColor(); 
             mixProgress = 0;
             layers.style.opacity = '1';
             break;
 
         case 'shake':
-            mixProgress += 0.04;
+            mixProgress += 0.05;
             if (mixProgress > 1) mixProgress = 1;
-            // 層を透明にしていき、下の「計算された混色」を見せる
             layers.style.opacity = (1 - mixProgress).toString();
-            layers.style.filter = `blur(${mixProgress * 15}px)`;
-            // 揺れ演出
-            cupWrapper.style.transform = `rotate(${Math.sin(Date.now()*0.02)*15}deg) translateY(${Math.random()*10}px)`;
+            layers.style.filter = `blur(${mixProgress * 10}px)`;
+            cupWrapper.style.transform = `rotate(${Math.sin(Date.now()*0.02)*10}deg)`;
             break;
 
         case 'tilt':
-            if (mixProgress < 0.1) { // 混ぜる前だけ傾く
+            if (mixProgress < 0.2) {
                 cupWrapper.style.transform = `rotate(${data.value * 0.5}deg)`;
             }
             break;
 
         case 'complete':
+            // ★保存処理を呼び出す
             saveWork(data.title);
             break;
     }
 });
 
-function saveWork(title) {
-    // ★修正：保存範囲をcup-containerに絞り、背景色を維持
-    html2canvas(cupContainer, {
-        backgroundColor: "#fff9c4", // コップの色
-        scale: 1
-    }).then(canvas => {
-        const imgData = canvas.toDataURL();
+// ★保存とギャラリー移動をセットにした関数
+async function saveWork(title) {
+    console.log("Saving work...");
+    try {
+        // 画像化の前に少し待つ（描画を安定させるため）
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // cup-containerを画像にする
+        const canvas = await html2canvas(cupContainer, {
+            backgroundColor: "#fff9c4",
+            scale: 1,
+            logging: false
+        });
+
+        const imgData = canvas.toDataURL('image/png');
         const grid = document.getElementById('gallery-grid');
+        
+        // カード作成
         const card = document.createElement('div');
         card.className = 'work-card';
         card.innerHTML = `<img src="${imgData}"><p><strong>${title}</strong></p>`;
-        grid.appendChild(card);
-        
-        // 画面をギャラリーへ
-        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-        document.getElementById('screen-gallery').classList.add('active');
-    });
+        grid.prepend(card); // 新しいものを上に追加
+
+        console.log("Save complete, moving to gallery.");
+        // 保存が終わってから画面を切り替える
+        goToScreen('gallery');
+
+    } catch (err) {
+        console.error("Save error:", err);
+        // エラーが起きてもとりあえずギャラリーには移動させる
+        goToScreen('gallery');
+    }
 }
+
 updateSelection();
