@@ -1,25 +1,23 @@
 const socket = io();
 
-function sendCmd(type, data = {}) {
-    socket.emit('cmd', { type, ...data });
-}
-
-// ★修正：スマホとPC両方の画面を切り替える
+// 共通の送信・画面切り替え関数
 function changeScreen(screenId) {
-    // スマホ側の表示切り替え
+    // 1. スマホの画面を切り替える
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('screen-' + screenId).classList.add('active');
-    // PC側へ命令を送信
-    sendCmd('changeScreen', { screen: screenId });
+    
+    // 2. PCの画面も切り替えるよう命令を送る
+    socket.emit('cmd', { type: 'changeScreen', screen: screenId });
 }
 
-// まぜるボタン
+// --- 自分の作品ボタン用 ---
+// HTMLの onclick="changeScreen('gallery')" でこの関数が呼ばれます
+
+// --- センサー・まぜる関連 ---
 document.getElementById("startBtn").addEventListener("click", () => {
     if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
         DeviceMotionEvent.requestPermission().then(state => {
-            if (state === "granted") {
-                startMixing();
-            }
+            if (state === "granted") startMixing();
         });
     } else {
         startMixing();
@@ -27,35 +25,34 @@ document.getElementById("startBtn").addEventListener("click", () => {
 });
 
 function startMixing() {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById('screen-shake').classList.add('active');
-    sendCmd('mixMode');
+    changeScreen('shake'); // ここでPCも一緒に切り替わる
     
     window.addEventListener("devicemotion", (e) => {
         const acc = e.acceleration;
         if (!acc) return;
         const speed = Math.abs(acc.x) + Math.abs(acc.y) + Math.abs(acc.z);
-        if (speed > 15) sendCmd("shake", { value: speed });
+        if (speed > 15) socket.emit('cmd', { type: 'shake', value: speed });
     });
     
     window.addEventListener("deviceorientation", (e) => {
-        sendCmd("tilt", { value: Math.round(e.gamma || 0) });
+        socket.emit('cmd', { type: 'tilt', value: Math.round(e.gamma || 0) });
     });
 }
 
 // 注ぐボタン
 const pourBtn = document.getElementById('btn-pour');
-pourBtn.addEventListener('touchstart', (e) => { e.preventDefault(); sendCmd('startPour'); });
-pourBtn.addEventListener('touchend', () => { sendCmd('stopPour'); });
+pourBtn.addEventListener('touchstart', (e) => { e.preventDefault(); socket.emit('cmd', { type: 'startPour' }); });
+pourBtn.addEventListener('touchend', () => { socket.emit('cmd', { type: 'stopPour' }); });
 
 function showTitleInput() {
+    // タイトル入力画面へ（ここはスマホだけ切り替わればOK）
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('screen-title').classList.add('active');
 }
 
 function finishWork() {
     const title = document.getElementById('work-title').value || "おいしいジュース";
-    sendCmd('complete', { title: title });
-    // 保存後はスマホもギャラリー画面へ
+    socket.emit('cmd', { type: 'complete', title: title });
+    // 保存後はギャラリー画面へ（PCも連動）
     changeScreen('gallery');
 }
