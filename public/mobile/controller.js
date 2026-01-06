@@ -1,15 +1,19 @@
 const socket = io();
 
-// 画面切り替え（自分とPCを連動）
-function changeScreen(screenId) {
+// window.をつけることで、HTMLのonclickから確実に見えるようになります
+window.changeScreen = function(screenId) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('screen-' + screenId).classList.add('active');
     socket.emit('cmd', { type: 'changeScreen', screen: screenId });
-}
+};
 
-// 各種ボタン
-function moveSelection(direction) { socket.emit('cmd', { type: 'move', dir: direction }); }
-function resetMix() { socket.emit('cmd', { type: 'reset' }); }
+window.moveSelection = function(direction) {
+    socket.emit('cmd', { type: 'move', dir: direction });
+};
+
+window.resetMix = function() {
+    socket.emit('cmd', { type: 'reset' });
+};
 
 // まぜるボタン
 document.getElementById("startBtn").addEventListener("click", () => {
@@ -23,8 +27,8 @@ document.getElementById("startBtn").addEventListener("click", () => {
 });
 
 function startMixing() {
-    changeScreen('shake'); // これでPC側も自動的にディスペンサーが隠れる
-    socket.emit('cmd', { type: 'mixMode' }); // 蓋を閉める命令
+    window.changeScreen('shake');
+    socket.emit('cmd', { type: 'mixMode' });
     
     window.addEventListener("devicemotion", (e) => {
         const acc = e.acceleration;
@@ -40,16 +44,18 @@ function startMixing() {
 
 // 注ぐボタン
 const pourBtn = document.getElementById('btn-pour');
-pourBtn.addEventListener('touchstart', (e) => { e.preventDefault(); socket.emit('cmd', { type: 'startPour' }); });
-pourBtn.addEventListener('touchend', () => { socket.emit('cmd', { type: 'stopPour' }); });
+if (pourBtn) {
+    pourBtn.addEventListener('touchstart', (e) => { e.preventDefault(); socket.emit('cmd', { type: 'startPour' }); });
+    pourBtn.addEventListener('touchend', () => { socket.emit('cmd', { type: 'stopPour' }); });
+}
 
-function showTitleInput() {
+window.showTitleInput = function() {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('screen-title').classList.add('active');
-}
+};
 
-function finishWork() {
+window.finishWork = function() {
     const title = document.getElementById('work-title').value || "おいしいジュース";
     socket.emit('cmd', { type: 'complete', title: title });
-    changeScreen('gallery');
-}
+    window.changeScreen('gallery');
+};
