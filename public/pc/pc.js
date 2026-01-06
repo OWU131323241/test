@@ -91,17 +91,38 @@ socket.on('cmd', (data) => {
             layers.style.opacity = '1';
             break;
 
-        case 'shake':
+case 'shake':
+            // 1. 混ざり具合を更新
             mixProgress += 0.05;
             if (mixProgress > 1) mixProgress = 1;
+            
+            // 2. 色の見た目を変更（層をぼかして透明にする）
             layers.style.opacity = (1 - mixProgress).toString();
-            layers.style.filter = `blur(${mixProgress * 10}px)`;
-            cupWrapper.style.transform = `rotate(${Math.sin(Date.now()*0.02)*10}deg)`;
+            layers.style.filter = `blur(${mixProgress * 15}px)`;
+            
+            // 3. ★ガタガタ揺れるアニメーションを強化★
+            // 振るたびにランダムな方向に瞬間的にずらす
+            const shakeX = (Math.random() - 0.5) * 30; // 左右に最大15px
+            const shakeY = (Math.random() - 0.5) * 30; // 上下に最大15px
+            const shakeRot = (Math.random() - 0.5) * 20; // 最大10度回転
+            
+            cupWrapper.style.transition = 'none'; // 振っている間は即座に反応させる
+            cupWrapper.style.transform = `translate(${shakeX}px, ${shakeY}px) rotate(${shakeRot}deg)`;
+            
+            // 振るのを止めた時にスッと戻るように、少し後に戻す処理を入れる
+            clearTimeout(window.shakeTimeout);
+            window.shakeTimeout = setTimeout(() => {
+                cupWrapper.style.transition = 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                cupWrapper.style.transform = `translate(0, 0) rotate(0deg)`;
+            }, 100);
             break;
 
         case 'tilt':
-            if (mixProgress < 0.2) {
-                cupWrapper.style.transform = `rotate(${data.value * 0.5}deg)`;
+            // 4. 傾きアニメーション（混ぜている最中は少しだけ、混ぜる前はしっかり傾く）
+            if (!isPouring) { // 注いでいない時だけ傾きに反応
+                const tiltEffect = mixProgress > 0.8 ? 0.2 : 0.6; // 混ざるほど重くなって傾かなくなる演出
+                cupWrapper.style.transition = 'transform 0.1s linear';
+                cupWrapper.style.transform = `rotate(${data.value * tiltEffect}deg)`;
             }
             break;
 
@@ -147,4 +168,5 @@ async function saveWork(title) {
 }
 
 updateSelection();
+
 
