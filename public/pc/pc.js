@@ -1,25 +1,32 @@
-// (上部の変数定義はそのまま)
+const socket = io();
+
+// (layers, cupWrapper, 等の要素取得は以前のままとします)
 
 socket.on('cmd', (data) => {
     switch(data.type) {
         case 'changeScreen':
-            goToScreen(data.screen);
-            // 注ぐ画面(mix)に戻ったときは傾きを強制リセット
+            // スマホからの命令で画面を切り替える
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById('screen-' + data.screen);
+            
+            // 注ぐ画面(mix)やホーム(home)ではコップを真っ直ぐにする
             if (data.screen === 'mix' || data.screen === 'home') {
+                cupWrapper.style.transition = 'transform 0.5s';
                 cupWrapper.style.transform = 'rotate(0deg)';
-                mixProgress = 0;
+                if (data.screen === 'mix') {
+                    document.getElementById('screen-mix').classList.add('active');
+                    document.getElementById('drink-bar').style.display = 'flex';
+                }
             }
-            if (data.screen === 'home') location.reload();
+            if (target) target.classList.add('active');
             break;
 
         case 'move':
-            // 左右ボタンの反応を確実に
             selectedIndex = (selectedIndex + data.dir + colors.length) % colors.length;
             updateSelection();
             break;
 
         case 'reset':
-            // やり直し：中身を空にして傾きも直す
             layers.innerHTML = '';
             pouredColors = [];
             cupContainer.style.backgroundColor = '#fff9c4';
@@ -41,13 +48,8 @@ socket.on('cmd', (data) => {
             pourInterval = null;
             break;
 
-        case 'mixMode':
-            goToScreen('shake');
-            cupLid.style.top = '0';
-            cupContainer.style.backgroundColor = getMixedColor(); 
-            break;
-
         case 'shake':
+            // ふるアニメーション（コップの中身を混ぜる）
             mixProgress += 0.05;
             if (mixProgress > 1) mixProgress = 1;
             layers.style.opacity = (1 - mixProgress).toString();
@@ -68,14 +70,11 @@ socket.on('cmd', (data) => {
             break;
 
         case 'tilt':
-            // ★修正：振るモード(shake)の時だけ傾くように制限する
-            // これで注ぐ画面で斜めになるのを防ぎます
-            const currentScreen = document.querySelector('.screen.active').id;
-            if (currentScreen === 'screen-mix' && mixProgress > 0) {
-                 // 混ぜ始めたら少し傾く
-                 cupWrapper.style.transform = `rotate(${data.value * 0.5}deg)`;
-            } else if (currentScreen === 'screen-shake') {
-                 cupWrapper.style.transform = `rotate(${data.value * 0.8}deg)`;
+            // 混ぜている最中か、ふる画面のときだけ傾く
+            const currentActive = document.querySelector('.screen.active');
+            if (currentActive && (currentActive.id === 'screen-shake' || mixProgress > 0)) {
+                cupWrapper.style.transition = 'transform 0.1s';
+                cupWrapper.style.transform = `rotate(${data.value * 0.6}deg)`;
             }
             break;
 
