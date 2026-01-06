@@ -49,33 +49,31 @@ function getMixedColor() {
 }
 
 // 命令の受け取り
+// (変数の定義などはそのまま)
+
 socket.on('cmd', (data) => {
     switch(data.type) {
         case 'changeScreen':
-            // 全画面を一旦隠す
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            
             if (data.screen === 'mix' || data.screen === 'shake') {
-                // 「つくる」か「まぜる」の時は、制作画面(screen-mix)を出す
                 document.getElementById('screen-mix').classList.add('active');
-                // ディスペンサーは「つくる(mix)」の時だけ出す
                 drinkBar.style.display = (data.screen === 'mix') ? 'flex' : 'none';
-                // 容器を真っ直ぐに戻す
                 cupWrapper.style.transform = 'rotate(0deg)';
             } else {
-                // ホームやギャラリーはそのまま表示
                 const target = document.getElementById('screen-' + data.screen);
                 if (target) target.classList.add('active');
             }
-            if (data.screen === 'home') location.reload();
             break;
 
         case 'move':
+            // 確実にインデックスを更新して枠を動かす
             selectedIndex = (selectedIndex + data.dir + colors.length) % colors.length;
             updateSelection();
+            console.log("Selected index:", selectedIndex);
             break;
 
         case 'reset':
+            // 全てを初期化
             layers.innerHTML = '';
             pouredColors = [];
             cupContainer.style.backgroundColor = '#fff9c4';
@@ -84,6 +82,7 @@ socket.on('cmd', (data) => {
             mixProgress = 0;
             layers.style.opacity = '1';
             layers.style.filter = 'none';
+            console.log("Mix reset done.");
             break;
 
         case 'startPour':
@@ -98,10 +97,9 @@ socket.on('cmd', (data) => {
             break;
 
         case 'mixMode':
-            // 振るモード：蓋を閉めて色を計算
             cupLid.style.top = '0';
             cupContainer.style.backgroundColor = getMixedColor(); 
-            drinkBar.style.display = 'none'; // ディスペンサーを隠す
+            drinkBar.style.display = 'none';
             break;
 
         case 'shake':
@@ -109,13 +107,10 @@ socket.on('cmd', (data) => {
             if (mixProgress > 1) mixProgress = 1;
             layers.style.opacity = (1 - mixProgress).toString();
             layers.style.filter = `blur(${mixProgress * 10}px)`;
-            
-            // ガタガタ揺れる演出
             const shakeX = (Math.random() - 0.5) * 30;
             const shakeRot = (Math.random() - 0.5) * 20;
             cupWrapper.style.transition = 'none';
             cupWrapper.style.transform = `translate(${shakeX}px, 0) rotate(${shakeRot}deg)`;
-            
             clearTimeout(window.shakeTimeout);
             window.shakeTimeout = setTimeout(() => {
                 cupWrapper.style.transition = 'transform 0.2s';
@@ -124,7 +119,6 @@ socket.on('cmd', (data) => {
             break;
 
         case 'tilt':
-            // 振っているときだけ少し傾ける
             if (mixProgress > 0) {
                 cupWrapper.style.transform = `rotate(${data.value * 0.5}deg)`;
             }
@@ -135,7 +129,6 @@ socket.on('cmd', (data) => {
             break;
     }
 });
-
 // 保存処理（前と同じ）
 async function saveWork(title) {
     const canvas = await html2canvas(cupContainer, { backgroundColor: "#fff9c4" });
@@ -150,3 +143,4 @@ async function saveWork(title) {
     document.getElementById('screen-gallery').classList.add('active');
 }
 updateSelection();
+
