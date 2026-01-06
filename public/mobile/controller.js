@@ -1,29 +1,18 @@
 const socket = io();
 
-// PCと自分、両方の画面を切り替える最重要関数
+// 画面切り替え（自分とPCを連動）
 function changeScreen(screenId) {
-    // 1. 自分の画面を切り替える
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    const target = document.getElementById('screen-' + screenId);
-    if (target) target.classList.add('active');
-
-    // 2. PCへ「画面を変えて」と命令を送る
+    document.getElementById('screen-' + screenId).classList.add('active');
     socket.emit('cmd', { type: 'changeScreen', screen: screenId });
 }
 
-// 左右移動ボタン
-function moveSelection(direction) {
-    socket.emit('cmd', { type: 'move', dir: direction });
-}
-
-// やりなおしボタン
-function resetMix() {
-    socket.emit('cmd', { type: 'reset' });
-}
+// 各種ボタン
+function moveSelection(direction) { socket.emit('cmd', { type: 'move', dir: direction }); }
+function resetMix() { socket.emit('cmd', { type: 'reset' }); }
 
 // まぜるボタン
 document.getElementById("startBtn").addEventListener("click", () => {
-    // iPhoneの許可リクエスト
     if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
         DeviceMotionEvent.requestPermission().then(state => {
             if (state === "granted") startMixing();
@@ -34,7 +23,8 @@ document.getElementById("startBtn").addEventListener("click", () => {
 });
 
 function startMixing() {
-    changeScreen('shake'); // これで自分もPCも「ふってまぜる」画面になる
+    changeScreen('shake'); // これでPC側も自動的にディスペンサーが隠れる
+    socket.emit('cmd', { type: 'mixMode' }); // 蓋を閉める命令
     
     window.addEventListener("devicemotion", (e) => {
         const acc = e.acceleration;
@@ -48,20 +38,12 @@ function startMixing() {
     });
 }
 
-// 注ぐボタンの長押し設定
+// 注ぐボタン
 const pourBtn = document.getElementById('btn-pour');
-if (pourBtn) {
-    pourBtn.addEventListener('touchstart', (e) => { 
-        e.preventDefault(); 
-        socket.emit('cmd', { type: 'startPour' }); 
-    });
-    pourBtn.addEventListener('touchend', () => { 
-        socket.emit('cmd', { type: 'stopPour' }); 
-    });
-}
+pourBtn.addEventListener('touchstart', (e) => { e.preventDefault(); socket.emit('cmd', { type: 'startPour' }); });
+pourBtn.addEventListener('touchend', () => { socket.emit('cmd', { type: 'stopPour' }); });
 
 function showTitleInput() {
-    // タイトル入力はスマホだけで良いのでemitしない
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById('screen-title').classList.add('active');
 }
@@ -69,5 +51,5 @@ function showTitleInput() {
 function finishWork() {
     const title = document.getElementById('work-title').value || "おいしいジュース";
     socket.emit('cmd', { type: 'complete', title: title });
-    changeScreen('gallery'); // 完成後に両方ギャラリーへ
+    changeScreen('gallery');
 }
